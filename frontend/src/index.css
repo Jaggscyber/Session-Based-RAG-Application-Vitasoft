@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* Adding a custom scrollbar for that sleek ChatGPT look */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 20px;
+}
