@@ -23,21 +23,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
         try {
             const res = await fetch('http://localhost:3000/api/ask', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'x-session-id': sessionId 
-                },
+                headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId },
                 body: JSON.stringify({ question: input, threshold }) 
             });
             const data = await res.json();
 
-            // FIXED: Handle backend errors properly
             if (!res.ok) {
-                const errorMsg: ChatMessage = { 
-                    id: crypto.randomUUID(), 
-                    role: 'assistant', 
-                    content: data.error || "An error occurred communicating with the server." 
-                };
+                const errorMsg: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: data.error };
                 setMessages(prev => [...prev, errorMsg]);
                 setIsLoading(false);
                 return;
@@ -51,14 +43,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
             const newAiMsg: ChatMessage = { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
-                content: data.answer,
+                content: data.answer, // UI Requirement: Display Final Answer
                 sources: sources
             };
             setMessages(prev => [...prev, newAiMsg]);
         } catch (error) {
-            console.error("Chat error:", error);
-            const fallbackMsg: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: "Failed to connect to the backend." };
-            setMessages(prev => [...prev, fallbackMsg]);
+            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: "Server connection failed." }]);
         } finally {
             setIsLoading(false);
         }
@@ -70,25 +60,28 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
                 {messages.length === 0 ? (
                     <div className="h-full flex items-center justify-center flex-col text-gray-400">
                         <span className="text-4xl mb-4">🤖</span>
-                        <h3 className="text-xl">How can I help you today?</h3>
-                        <p className="text-sm">Upload a document to the left to get started.</p>
+                        <h3 className="text-xl">Docu-Chat AI Ready</h3>
+                        <p className="text-sm">Upload a document to begin your session.</p>
                     </div>
                 ) : (
                     messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-3xl rounded-lg p-5 ${msg.role === 'user' ? 'bg-blue-50 text-blue-900 border border-blue-100' : 'bg-gray-50 text-gray-800 border border-gray-200'}`}>
-                                <p className="leading-relaxed">{msg.content}</p>
                                 
+                                {/* UI Requirement: Display Final Answer */}
+                                <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                
+                                {/* UI Requirement: Display Retrieved Chunks & Similarity Scores */}
                                 {msg.sources && msg.sources.length > 0 && (
                                     <div className="mt-4 pt-4 border-t border-gray-200">
-                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Sources Referenced</p>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Retrieved Document Chunks</p>
                                         <div className="space-y-2">
                                             {msg.sources.map((src, idx) => (
                                                 <div key={idx} className="bg-white p-3 rounded border border-gray-100 shadow-sm text-sm">
-                                                    <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded font-medium mb-1">
-                                                        {(src.score * 100).toFixed(1)}% Match
+                                                    <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded font-medium mb-2">
+                                                        Similarity Score: {(src.score * 100).toFixed(1)}%
                                                     </span>
-                                                    <p className="text-gray-600 line-clamp-3">{src.text}</p>
+                                                    <p className="text-gray-600 leading-snug">{src.text}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -108,20 +101,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
                 )}
             </div>
 
+            {/* UI Requirement: Question Input Field */}
             <div className="p-6 bg-white border-t border-gray-100">
                 <div className="max-w-4xl mx-auto relative flex items-center">
                     <input 
-                        type="text" 
-                        value={input}
+                        type="text" value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Ask a question about your documents..."
                         className="w-full bg-gray-50 border border-gray-300 rounded-full py-4 pl-6 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                     />
                     <button 
-                        onClick={handleSend}
-                        disabled={!input.trim() || isLoading}
-                        className="absolute right-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        onClick={handleSend} disabled={!input.trim() || isLoading}
+                        className="absolute right-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                     </button>

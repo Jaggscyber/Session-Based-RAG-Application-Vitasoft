@@ -5,23 +5,24 @@ import { cosineSimilarity } from '../utils/vectorMath';
 import { AskRequest } from '../types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize Google Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 const DEFAULT_TOP_K = 3;
 
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
     try {
         const sessionId = req.headers['x-session-id'] as string;
-        if (!sessionId) { res.status(400).json({ error: 'Session ID required' }); return; }
-        if (!req.file) { res.status(400).json({ error: 'File required' }); return; }
+        if (!sessionId || !req.file) { 
+            res.status(400).json({ error: 'Session ID and File are required' }); 
+            return; 
+        }
+
+        console.log(`\n⚙️ [SESSION: ${sessionId.slice(0,6)}] Processing file...`);
 
         const text = await extractText(req.file.buffer, req.file.mimetype);
         const chunks = chunkText(text);
 
-        // FIXED: Using the active 2026 Gemini Embedding model
         const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
         
-        // Embed all chunks concurrently
         const chunkData = await Promise.all(chunks.map(async (chunk) => {
             const result = await embeddingModel.embedContent(chunk);
             return {
@@ -31,10 +32,11 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         }));
 
         vectorStore.addChunks(sessionId, chunkData);
+        console.log(`✅ Stored ${chunks.length} chunks.`);
 
         res.json({ status: 'Success', chunksCreated: chunks.length, sessionId });
     } catch (error) {
-        console.error("UPLOAD ERROR:", error);
+        console.error("❌ UPLOAD ERROR:", error);
         res.status(500).json({ error: 'Failed to process document' });
     }
 };
@@ -42,25 +44,26 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
 export const askQuestion = async (req: Request, res: Response): Promise<void> => {
     try {
         const sessionId = req.headers['x-session-id'] as string;
-        const { question, threshold = 0.75 } = req.body as AskRequest;
+        // Defaulting to 0.50 to perfectly match Gemini's embedding space
+        const { question, threshold = 0.50 } = req.body as AskRequest; 
 
         const storedChunks = vectorStore.getChunks(sessionId);
         if (storedChunks.length === 0) {
             res.status(400).json({ error: 'No documents uploaded for this session.' }); return;
         }
 
-        // FIXED: Using the active 2026 Gemini Embedding model
+        // 1. Generate embedding for the question
         const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
         const qEmbeddingResult = await embeddingModel.embedContent(question);
         const queryVector = qEmbeddingResult.embedding.values;
 
-        // Manual Similarity & Retrieval
+        // 2 & 3. Compute cosine similarity and retrieve Top K chunks
         const scoredChunks = storedChunks.map(chunk => ({
             text: chunk.text,
             score: cosineSimilarity(queryVector, chunk.embedding)
         })).sort((a, b) => b.score - a.score).slice(0, DEFAULT_TOP_K);
 
-        // Strict Guardrail Check
+        // 4. If similarity score is below threshold -> return rejection
         if (scoredChunks[0].score < threshold) {
             res.json({ 
                 answer: "This question is outside the scope of uploaded documents.", 
@@ -70,11 +73,22 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Build Prompt strictly from context to prevent hallucinations
+        // 5. Otherwise: Build a prompt using only retrieved chunks to prevent hallucinations
         const context = scoredChunks.map(c => c.text).join('\n\n---\n\n');
-        const prompt = `You are a strict, professional assistant. Answer the user's question ONLY using the provided document context below. Do NOT use any external knowledge. If the answer cannot be found in the context, reply exactly with: "I cannot answer this based on the provided documents."\n\nContext:\n${context}\n\nQuestion: ${question}`;
+        
+        const prompt = `You are an expert analytical assistant. Your task is to answer the user's question using ONLY the provided document context below. 
+        
+        Rules to prevent hallucinations:
+        1. Do NOT use any external knowledge. 
+        2. You may summarize, compare, and synthesize the information found in the context to construct a highly accurate answer.
+        3. If the provided context does not contain enough relevant information to answer the question, reply exactly with: "I cannot answer this based on the provided documents."
 
-        // FIXED: Using the active 2026 Gemini 2.5 Flash model
+        Context:
+        ${context}
+
+        Question: ${question}`;
+
+        // Send to LLM and Return grounded response
         const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const completion = await chatModel.generateContent(prompt);
 
@@ -85,7 +99,7 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         });
 
     } catch (error) {
-        console.error("ASK ERROR:", error);
+        console.error("❌ ASK ERROR:", error);
         res.status(500).json({ error: 'Failed to generate answer' });
     }
 };

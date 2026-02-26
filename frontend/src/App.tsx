@@ -8,18 +8,18 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [sessionId, setSessionId] = useState<string>('');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [threshold, setThreshold] = useState<number>(0.75);
+    
+    // Defaulting to 0.50 ensures Gemini's valid matches are not blocked
+    const [threshold, setThreshold] = useState<number>(0.50); 
     
     useEffect(() => {
         setSessionId(crypto.randomUUID());
     }, []);
 
-    // Keeps files, just wipes the screen
     const handleClearChat = () => {
         setMessages([]);
     };
 
-    // Wipes screen AND backend data
     const handleResetSession = async () => {
         try {
             await fetch('http://localhost:3000/api/session', {
@@ -27,19 +27,20 @@ export default function App() {
                 headers: { 'x-session-id': sessionId }
             });
             setMessages([]);
-            setSessionId(crypto.randomUUID()); // Generate fresh ID
+            setSessionId(crypto.randomUUID());
         } catch (error) {
             console.error("Failed to reset session", error);
         }
     };
 
+    // Inside your App.tsx file:
     if (!isAuthenticated) {
         return (
-            <GoogleOAuthProvider clientId="375722936704-v7rq1t0hr3708or4q1q4r6fh0b8l7jjt.apps.googleusercontent.com">
+            <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
                 <div className="flex h-screen items-center justify-center bg-gray-50">
                     <div className="bg-white p-8 rounded-lg shadow-lg text-center">
-                        <h1 className="text-2xl font-bold mb-6 text-gray-800">Welcome to Docu-Chat AI</h1>
-                        <p className="text-gray-500 mb-8">Please sign in to securely access your documents.</p>
+                        <h1 className="text-2xl font-bold mb-6 text-gray-800">Docu-Chat AI</h1>
+                        <p className="text-gray-500 mb-8">Sign in to securely access your documents.</p>
                         <GoogleLogin onSuccess={() => setIsAuthenticated(true)} onError={() => console.log('Login Failed')} />
                     </div>
                 </div>
