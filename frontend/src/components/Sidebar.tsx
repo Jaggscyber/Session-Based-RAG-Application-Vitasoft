@@ -1,159 +1,191 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ProgressBar } from './ProgressBar';
-import type { RecentChat } from '../types';
+import type { ChatSession } from '../App';
 
 interface SidebarProps {
-    sessionId: string;
-    threshold: number;
-    setThreshold: (val: number) => void;
-    onClearChat: () => void;
-    onResetSession: () => void;
+    userName?: string;
+    activeSessionId: string;
+    sessions: ChatSession[];
+    uploadedFiles: {name: string, chunks?: number}[];
+    uploadStatus: 'idle' | 'processing' | 'success' | 'error';
+    statusMessage: string;
+    uploadFile: (file: File) => Promise<void>;
+    threshold: number; setThreshold: (val: number) => void;
+    chunkSize: number; setChunkSize: (val: number) => void;
+    topK: number; setTopK: (val: number) => void;
+    onRemoveFile: (fileName: string) => void;
+    onLoadSession: (id: string) => void;
+    onNewChat: () => void;
     onLogout: () => void;
+    isOpen: boolean;
+    setIsOpen: (val: boolean) => void;
 }
 
-// Defining a local type to track multiple files
-interface UploadedFile {
-    name: string;
-    chunks: number;
-}
+const timeAgo = (date: number) => {
+    const seconds = Math.floor((Date.now() - date) / 1000);
+    if (seconds < 60) return "Just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(date).toLocaleDateString();
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-    sessionId, threshold, setThreshold, onClearChat, onResetSession, onLogout 
+    userName, activeSessionId, sessions, uploadedFiles, uploadStatus, statusMessage, uploadFile,
+    threshold, setThreshold, chunkSize, setChunkSize, topK, setTopK, 
+    onRemoveFile, onLoadSession, onNewChat, onLogout, isOpen, setIsOpen
 }) => {
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-    const [statusMessage, setStatusMessage] = useState('');
-    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-
-    // Mock recent chats [cite: 58]
-    const recentChats: RecentChat[] = [
-        { id: '1', title: 'Q4 Financial Report' },
-        { id: '2', title: 'Resume Analysis' }
-    ];
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (file.type !== 'application/pdf' && file.type !== 'text/plain') {
-            setUploadStatus('error');
-            setStatusMessage('Invalid file. Only .pdf and .txt supported.');
-            return;
-        }
-
-        setUploadStatus('processing');
-        setStatusMessage(`Processing ${file.name}...`);
-
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const res = await fetch('http://localhost:3000/api/upload', {
-                method: 'POST',
-                headers: { 'x-session-id': sessionId },
-                body: formData
-            });
-
-            if (!res.ok) throw new Error('Upload failed');
-            const data = await res.json();
-            
-            setUploadStatus('success');
-            setStatusMessage('Document added to session!');
-            
-            // Append the new file to our list
-            setUploadedFiles(prev => [...prev, { name: file.name, chunks: data.chunksCreated }]);
-            
-        } catch (error) {
-            setUploadStatus('error');
-            setStatusMessage('Failed to upload document.');
-        }
-    };
-
-    const handleRemoveFile = (fileNameToRemove: string) => {
-        // Visually removes it from the frontend list
-        setUploadedFiles(prev => prev.filter(f => f.name !== fileNameToRemove));
-        // Note: For a true backend wipe, we would call a DELETE /api/file endpoint here
-    };
-
-    const handleFullReset = () => {
-        setUploadedFiles([]);
-        setUploadStatus('idle');
-        onResetSession();
-    };
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
     return (
-        <div className="w-72 bg-gray-900 text-gray-100 flex flex-col h-full p-4">
-            <h2 className="text-xl font-bold mb-6 text-white">Docu-Chat AI</h2>
-            
-            <div className="mb-6 relative">
-                <input 
-                    type="file" accept=".pdf,.txt" onChange={handleFileUpload} 
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    title="Upload Document"
-                />
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded flex items-center justify-center transition-colors">
-                    <span className="mr-2">📄</span> Upload Document
-                </button>
-            </div>
-
-            <ProgressBar status={uploadStatus} />
-            
-            {(uploadStatus !== 'idle') && (
-                <div className={`p-3 rounded text-sm mb-4 border ${uploadStatus === 'error' ? 'bg-red-900/30 border-red-800' : 'bg-gray-800 border-gray-700'}`}>
-                    <p className={`font-semibold ${uploadStatus === 'success' ? 'text-green-400' : uploadStatus === 'error' ? 'text-red-400' : 'text-blue-400'}`}>
-                        {statusMessage}
-                    </p>
-                    <p className="truncate text-xs text-gray-500 mt-2">Session ID: {sessionId.slice(0,8)}...</p>
-                </div>
+        <>
+            {isOpen && (
+                <div className="fixed inset-0 bg-gray-900/50 z-40 md:hidden" onClick={() => setIsOpen(false)} />
             )}
 
-            {/* Uploaded Files List */}
-            {uploadedFiles.length > 0 && (
-                <div className="mb-6">
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wider">Active Files</p>
-                    <div className="space-y-2">
-                        {uploadedFiles.map((file, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-gray-800 p-2 rounded text-sm border border-gray-700">
-                                <span className="truncate w-3/4 text-gray-300">📄 {file.name}</span>
-                                <button onClick={() => handleRemoveFile(file.name)} className="text-red-400 hover:text-red-300 text-xs px-2">
-                                    Remove
-                                </button>
-                            </div>
-                        ))}
+            <div className={`fixed inset-y-0 left-0 z-50 w-[360px] bg-gray-50 border-r border-gray-200 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 flex flex-col h-full shadow-lg md:shadow-none`}>
+                
+                <div className="shrink-0 p-5 bg-white border-b border-gray-200 flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
+                            {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div className="truncate">
+                            <h2 className="text-sm font-bold text-gray-800 truncate">{userName || 'User'}</h2>
+                            <p className="text-xs text-gray-500">Document-Chat AI</p>
+                        </div>
                     </div>
-                </div>
-            )}
-
-            {/* Chat History Area */}
-            <div className="flex-1 overflow-y-auto mt-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-3 tracking-wider">Recent Chats</p>
-                {recentChats.map(chat => (
-                    <button key={chat.id} className="w-full text-left truncate py-2 px-3 rounded hover:bg-gray-800 transition-colors text-sm mb-1 text-gray-300">
-                        💬 {chat.title}
+                    <button onClick={onLogout} title="Logout" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                     </button>
-                ))}
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="mt-4 pt-4 border-t border-gray-700 space-y-4">
-                <div>
-                    <label className="text-xs text-gray-400 block mb-2">Similarity Threshold: {threshold}</label>
-                    <input 
-                        type="range" min="0.5" max="0.99" step="0.01" value={threshold} 
-                        onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                        className="w-full accent-blue-500"
-                    />
                 </div>
                 
-                <button onClick={onClearChat} className="w-full py-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 transition-colors text-sm">
-                    Clear Chat (Keep Files)
-                </button>
-                <button onClick={handleFullReset} className="w-full py-2 border border-red-500 text-red-500 rounded hover:bg-red-500 hover:text-white transition-colors text-sm">
-                    Reset Entire Session
-                </button>
-                <button onClick={onLogout} className="w-full py-2 text-gray-400 hover:text-white transition-colors text-sm text-left pl-2">
-                    ← Logout
-                </button>
+                <div className="flex-1 overflow-y-auto min-h-0 p-5 custom-scrollbar space-y-6">
+                    
+                    <div className="space-y-3">
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full bg-blue-600 text-white hover:bg-blue-700 py-3 px-4 rounded-lg flex items-center justify-center transition-colors font-bold shadow-sm">
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            Upload Document
+                        </button>
+                        <input type="file" ref={fileInputRef} accept=".pdf,.txt" className="hidden" onChange={(e) => { e.target.files && uploadFile(e.target.files[0]); e.target.value = ''; }} />
+                        
+                        <button onClick={onNewChat} className="w-full py-2.5 border-2 border-gray-200 text-gray-600 rounded-lg hover:border-gray-300 hover:bg-gray-100 transition-colors text-sm font-bold">
+                            + Start New Session
+                        </button>
+                    </div>
+
+                    {uploadStatus !== 'idle' && (
+                        <div>
+                            <ProgressBar status={uploadStatus} />
+                            <p className={`text-xs font-semibold text-center mt-2 ${uploadStatus === 'error' ? 'text-red-600' : 'text-blue-600'}`}>{statusMessage}</p>
+                        </div>
+                    )}
+
+                    {uploadedFiles.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Active Files</p>
+                            <div className="space-y-2">
+                                {uploadedFiles.map((file, idx) => (
+                                    <div key={idx} className="space-y-1">
+                                        
+                                        <div 
+                                            onClick={() => setSelectedFile(prev => prev === file.name ? null : file.name)}
+                                            className={`flex justify-between items-center bg-white p-2.5 rounded-lg border text-sm shadow-sm hover:bg-gray-50 cursor-pointer transition-colors ${selectedFile === file.name ? 'border-blue-300' : 'border-gray-200'}`}
+                                        >
+                                            <span className="truncate text-gray-700 font-medium text-xs flex items-center">
+                                                <svg className="w-4 h-4 mr-2 text-gray-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"></path></svg>
+                                                {file.name}
+                                            </span>
+                                            
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onRemoveFile(file.name); }} 
+                                                className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                            </button>
+                                        </div>
+
+                                        {selectedFile === file.name && (
+                                            <div className="bg-blue-50/80 border border-blue-100 rounded-lg p-3 text-xs text-blue-900 shadow-inner relative ml-2 mr-2">
+                                                <div className="absolute -top-1.5 left-4 w-3 h-3 bg-blue-50/80 border-l border-t border-blue-100 transform rotate-45"></div>
+                                                <div className="relative z-10 space-y-1.5">
+                                                    <p className="flex justify-between items-center">
+                                                        <span className="font-bold text-blue-800/70">Status:</span> 
+                                                        <span className="text-green-600 font-bold flex items-center bg-green-100 px-2 py-0.5 rounded-full">
+                                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span> Active
+                                                        </span>
+                                                    </p>
+                                                    <p className="flex justify-between items-center">
+                                                        <span className="font-bold text-blue-800/70">Chunks Processed:</span> 
+                                                        <span className="font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-100">{file.chunks || 0}</span>
+                                                    </p>
+                                                    <div className="pt-2 mt-2 border-t border-blue-200/50">
+                                                        <p className="font-bold text-blue-800/70 mb-1">Session ID:</p>
+                                                        <p className="font-mono text-[9px] break-all bg-white p-1.5 rounded text-gray-500 border border-blue-100 shadow-sm">{activeSessionId}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {sessions.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Recent Chats</p>
+                            <div className="space-y-2">
+                                {sessions.map(session => {
+                                    const isActive = activeSessionId === session.sessionId;
+                                    return (
+                                        <button 
+                                            key={session.sessionId} onClick={() => onLoadSession(session.sessionId)} 
+                                            className={`w-full text-left p-3 rounded-lg text-sm border transition-all ${isActive ? 'bg-blue-50 border-blue-600 border-l-4 shadow-sm' : 'bg-white border-transparent hover:border-gray-200 shadow-sm'}`}
+                                        >
+                                            <p className={`font-semibold truncate mb-1 ${isActive ? 'text-blue-900' : 'text-gray-700'}`}>{session.title}</p>
+                                            <p className="text-[10px] text-gray-500 font-medium">{timeAgo(session.updatedAt)}</p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="shrink-0 bg-white border-t border-gray-200 p-5 z-20">
+                    <details className="group">
+                        <summary className="cursor-pointer text-xs font-bold text-gray-500 uppercase flex justify-between items-center hover:text-gray-800 transition-colors list-none">
+                            <span>Advanced Settings</span>
+                            <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path>
+                            </svg>
+                        </summary>
+                        <div className="mt-4 space-y-4">
+                            <div>
+                                <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="threshold-slider">
+                                    <span>Similarity Threshold</span> <span className="font-bold">{threshold}</span>
+                                </label>
+                                <input id="threshold-slider" aria-label="Similarity Threshold" type="range" min="0.3" max="0.99" step="0.01" value={threshold} onChange={(e) => setThreshold(parseFloat(e.target.value))} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="chunk-slider">
+                                    <span>Chunk Size (chars)</span> <span className="font-bold">{chunkSize}</span>
+                                </label>
+                                <input id="chunk-slider" aria-label="Chunk Size" type="range" min="500" max="2000" step="100" value={chunkSize} onChange={(e) => setChunkSize(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="topk-slider">
+                                    <span>Top K Sources</span> <span className="font-bold">{topK}</span>
+                                </label>
+                                <input id="topk-slider" aria-label="Top K Sources" type="range" min="1" max="6" step="1" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                            </div>
+                        </div>
+                    </details>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
