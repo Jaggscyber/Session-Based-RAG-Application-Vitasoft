@@ -40,5 +40,5 @@ app.delete('/api/session', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`🚀 RAG Backend running on http://localhost:${port}`);
+    console.log(`RAG Backend running on http://localhost:${port}`);
 });

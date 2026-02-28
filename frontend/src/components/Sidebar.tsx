@@ -13,8 +13,11 @@ interface SidebarProps {
     threshold: number; setThreshold: (val: number) => void;
     chunkSize: number; setChunkSize: (val: number) => void;
     topK: number; setTopK: (val: number) => void;
+    // NEW: Added the missing props to the interface!
+    maxTokens: number; setMaxTokens: (val: number) => void;
     onRemoveFile: (fileName: string) => void;
     onLoadSession: (id: string) => void;
+    onDeleteSession: (id: string, e: React.MouseEvent) => void;
     onNewChat: () => void;
     onLogout: () => void;
     isOpen: boolean;
@@ -31,10 +34,11 @@ const timeAgo = (date: number) => {
     return new Date(date).toLocaleDateString();
 };
 
+// NEW: Added the missing props to the component parameters!
 export const Sidebar: React.FC<SidebarProps> = ({ 
     userName, activeSessionId, sessions, uploadedFiles, uploadStatus, statusMessage, uploadFile,
-    threshold, setThreshold, chunkSize, setChunkSize, topK, setTopK, 
-    onRemoveFile, onLoadSession, onNewChat, onLogout, isOpen, setIsOpen
+    threshold, setThreshold, chunkSize, setChunkSize, topK, setTopK, maxTokens, setMaxTokens,
+    onRemoveFile, onLoadSession, onDeleteSession, onNewChat, onLogout, isOpen, setIsOpen
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -54,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <div className="truncate">
                             <h2 className="text-sm font-bold text-gray-800 truncate">{userName || 'User'}</h2>
-                            <p className="text-xs text-gray-500">Document-Chat AI</p>
+                            <p className="text-xs text-gray-500">Docu-Chat AI</p>
                         </div>
                     </div>
                     <button onClick={onLogout} title="Logout" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
@@ -143,10 +147,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     return (
                                         <button 
                                             key={session.sessionId} onClick={() => onLoadSession(session.sessionId)} 
-                                            className={`w-full text-left p-3 rounded-lg text-sm border transition-all ${isActive ? 'bg-blue-50 border-blue-600 border-l-4 shadow-sm' : 'bg-white border-transparent hover:border-gray-200 shadow-sm'}`}
+                                            className={`w-full text-left p-3 rounded-lg text-sm border transition-all relative group overflow-hidden ${isActive ? 'bg-blue-50 border-blue-600 border-l-4 shadow-sm' : 'bg-white border-transparent hover:border-gray-200 shadow-sm'}`}
                                         >
-                                            <p className={`font-semibold truncate mb-1 ${isActive ? 'text-blue-900' : 'text-gray-700'}`}>{session.title}</p>
-                                            <p className="text-[10px] text-gray-500 font-medium">{timeAgo(session.updatedAt)}</p>
+                                            <div className="pr-6">
+                                                <p className={`font-semibold truncate mb-1 ${isActive ? 'text-blue-900' : 'text-gray-700'}`}>{session.title}</p>
+                                                <p className="text-[10px] text-gray-500 font-medium">{timeAgo(session.updatedAt)}</p>
+                                            </div>
+                                            
+                                            <div 
+                                                onClick={(e) => onDeleteSession(session.sessionId, e)}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Delete Chat"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </div>
                                         </button>
                                     );
                                 })}
@@ -181,6 +195,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <span>Top K Sources</span> <span className="font-bold">{topK}</span>
                                 </label>
                                 <input id="topk-slider" aria-label="Top K Sources" type="range" min="1" max="6" step="1" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="token-slider">
+                                    <span>Max Output Tokens</span> <span className="font-bold">{maxTokens}</span>
+                                </label>
+                                <input id="token-slider" aria-label="Max Tokens" type="range" min="100" max="2000" step="100" value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value))} className="w-full accent-blue-600" />
                             </div>
                         </div>
                     </details>

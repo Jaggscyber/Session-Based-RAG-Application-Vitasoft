@@ -18,14 +18,13 @@ export interface ChatSession {
     updatedAt: number;
     messages: ChatMessage[];
     chunks: number;
-    files: {name: string, chunks: number}[]; // ADDED CHUNKS HERE
+    files: {name: string, chunks: number}[];
 }
 
 export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [userProfile, setUserProfile] = useState<{name: string, email: string} | null>(null);
     
-    // Multi-Session & UI State
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -33,14 +32,14 @@ export default function App() {
     const [uploadedFiles, setUploadedFiles] = useState<{name: string, chunks: number}[]>([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     
-    // Global Upload State (Lifted so ChatArea can use Dropzone)
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
 
-    // Configurable Settings
+    // Configurable Settings (Added maxTokens for Bonus)
     const [threshold, setThreshold] = useState<number>(0.50); 
     const [chunkSize, setChunkSize] = useState<number>(1000);
     const [topK, setTopK] = useState<number>(3);
+    const [maxTokens, setMaxTokens] = useState<number>(500);
     
     useEffect(() => {
         const savedUser = localStorage.getItem('userProfile');
@@ -50,9 +49,7 @@ export default function App() {
             setUserProfile(JSON.parse(savedUser));
             setIsAuthenticated(true);
         }
-        if (savedSessions) {
-            setSessions(JSON.parse(savedSessions));
-        }
+        if (savedSessions) setSessions(JSON.parse(savedSessions));
         setActiveSessionId(crypto.randomUUID());
     }, []);
 
@@ -62,14 +59,14 @@ export default function App() {
 
         setSessions(prev => {
             const existingIdx = prev.findIndex(s => s.sessionId === activeSessionId);
-            
-            // UX FIX #6: Use the document name as the session title instead of the question
+            const existingSession = existingIdx >= 0 ? prev[existingIdx] : null;
+            const contentChanged = !existingSession || existingSession.messages.length !== messages.length || existingSession.chunks !== chunksCreated;
             const sessionTitle = uploadedFiles.length > 0 ? uploadedFiles[0].name : "New Document Chat";
 
             const updatedSession: ChatSession = {
                 sessionId: activeSessionId,
                 title: sessionTitle,
-                updatedAt: Date.now(),
+                updatedAt: contentChanged ? Date.now() : (existingSession ? existingSession.updatedAt : Date.now()),
                 messages, chunks: chunksCreated, files: uploadedFiles
             };
 
@@ -95,8 +92,8 @@ export default function App() {
     };
 
     const uploadFile = async (file: File) => {
-        setUploadStatus('success');
-        setStatusMessage('Upload Success!');
+        setUploadStatus('processing');
+        setStatusMessage(`Processing ${file.name}...`);
         try {
             const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
             const formData = new FormData();
@@ -114,7 +111,11 @@ export default function App() {
             
             setUploadStatus('success');
             setStatusMessage('Upload Success!');
-            setUploadedFiles(prev => [...prev, { name: file.name, chunks: data.chunksCreated }]);
+            
+            setUploadedFiles(prev => {
+                const filtered = prev.filter(f => f.name !== file.name);
+                return [...filtered, { name: file.name, chunks: data.chunksCreated }];
+            });
             setChunksCreated(prev => prev + data.chunksCreated);
             
             setTimeout(() => setUploadStatus('idle'), 3000);
@@ -132,7 +133,20 @@ export default function App() {
             setMessages(sess.messages);
             setChunksCreated(sess.chunks);
             setUploadedFiles(sess.files);
-            setIsSidebarOpen(false); // Close mobile sidebar on selection
+            setIsSidebarOpen(false);
+        }
+    };
+
+    // FEATURE: User Control to Delete specific chats
+    const handleDeleteSession = (idToDelete: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevents loading the chat when you just want to delete it
+        setSessions(prev => {
+            const updated = prev.filter(s => s.sessionId !== idToDelete);
+            localStorage.setItem('docuChatSessions', JSON.stringify(updated));
+            return updated;
+        });
+        if (activeSessionId === idToDelete) {
+            handleNewChat();
         }
     };
 
@@ -152,7 +166,7 @@ export default function App() {
             <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
                 <div className="flex h-screen items-center justify-center bg-gray-50">
                     <div className="bg-white p-10 rounded-xl shadow-xl text-center border border-gray-100 max-w-md w-full">
-                        <h1 className="text-3xl font-bold mb-2 text-blue-600">Document-Chat AI</h1>
+                        <h1 className="text-3xl font-bold mb-2 text-blue-600">Docu-Chat AI</h1>
                         <p className="text-gray-500 mb-8">Secure document intelligence.</p>
                         <div className="flex justify-center">
                             <GoogleLogin onSuccess={handleLoginSuccess} />
@@ -174,6 +188,7 @@ export default function App() {
                 threshold={threshold} setThreshold={setThreshold}
                 chunkSize={chunkSize} setChunkSize={setChunkSize}
                 topK={topK} setTopK={setTopK}
+                maxTokens={maxTokens} setMaxTokens={setMaxTokens} // Passed new prop
                 onRemoveFile={async (name) => {
                     try {
                         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -184,6 +199,7 @@ export default function App() {
                     } catch (e) { console.error("Failed to delete file"); }
                 }}
                 onLoadSession={handleLoadSession}
+                onDeleteSession={handleDeleteSession} // Passed new prop
                 onNewChat={handleNewChat}
                 onLogout={handleLogout}
                 isOpen={isSidebarOpen}
@@ -193,7 +209,7 @@ export default function App() {
                 sessionId={activeSessionId}
                 messages={messages} setMessages={setMessages}
                 uploadedFiles={uploadedFiles} uploadFile={uploadFile}
-                threshold={threshold} topK={topK}
+                threshold={threshold} topK={topK} maxTokens={maxTokens} // Passed new prop
                 onOpenSidebar={() => setIsSidebarOpen(true)}
             />
         </div>

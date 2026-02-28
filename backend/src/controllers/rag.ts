@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { extractText, chunkText } from '../services/parser';
 import { vectorStore } from '../store/memoryDb';
-import { cosineSimilarity } from '../utils/vectorMath';
+import { normalizeVector, optimizedCosineSimilarity } from '../utils/vectorMath';
 import { AskRequest, ApiResponse } from '../types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+const isDev = process.env.NODE_ENV !== 'production';
 
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -26,7 +27,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
             const result = await embeddingModel.embedContent(chunk);
             return {
                 text: chunk,
-                embedding: result.embedding.values,
+                embedding: normalizeVector(result.embedding.values),
                 fileName: req.file!.originalname
             };
         }));
@@ -34,33 +35,37 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         vectorStore.addChunks(sessionId, chunkData);
         res.json({ status: 'Success', chunksCreated: chunks.length, sessionId });
     } catch (error) {
-        console.error("❌ UPLOAD ERROR:", error);
+        if (isDev) console.error("UPLOAD ERROR:", error);
         res.status(500).json({ error: 'Failed to process document' });
     }
 };
 
 export const askQuestion = async (req: Request, res: Response): Promise<void> => {
+    const startTime = Date.now(); 
     try {
         const sessionId = req.headers['x-session-id'] as string;
         const topK = Math.min(Math.max(parseInt(req.body.topK) || 3, 1), 10);
         const threshold = Math.min(Math.max(parseFloat(req.body.threshold) || 0.50, 0), 1);
+        
+        // BONUS: Parse the max tokens from the frontend request
+        const maxTokens = Math.min(Math.max(parseInt(req.body.maxTokens) || 500, 100), 2000);
         const question = req.body.question;
 
         const storedChunks = vectorStore.getChunks(sessionId);
         if (storedChunks.length === 0) {
-            res.status(400).json({ error: 'No documents uploaded for this session.' }); return;
+            res.status(400).json({ error: 'Server memory  reset. Please re-upload your document to restore this session!!' }); 
+            return;
         }
 
         const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
         const qEmbeddingResult = await embeddingModel.embedContent(question);
-        const queryVector = qEmbeddingResult.embedding.values;
+        const queryVector = normalizeVector(qEmbeddingResult.embedding.values);
 
         const scoredChunks = storedChunks.map(chunk => ({
             text: chunk.text,
-            score: cosineSimilarity(queryVector, chunk.embedding)
+            score: optimizedCosineSimilarity(queryVector, chunk.embedding)
         })).sort((a, b) => b.score - a.score).slice(0, topK);
 
-        // Strictly filter out chunks below the threshold
         const relevantChunks = scoredChunks.filter(c => c.score >= threshold);
 
         if (relevantChunks.length === 0) {
@@ -70,7 +75,6 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         }
 
         const context = relevantChunks.map(c => c.text).join('\n\n---\n\n');
-        
         const prompt = `You are an expert analytical assistant. Answer the user's question using ONLY the provided document context below. 
         Rules:
         1. Do NOT use any external knowledge. 
@@ -83,7 +87,14 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         Question: ${question}`;
 
         const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const completion = await chatModel.generateContent(prompt);
+        
+        // BONUS: Injecting Token Length Control into the LLM execution
+        const completion = await chatModel.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: maxTokens }
+        });
+
+        if (isDev) console.info(`[RAG] Response generated in ${Date.now() - startTime}ms`);
 
         const successRes: ApiResponse = {
             answer: completion.response.text(),
@@ -93,15 +104,14 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         res.json(successRes);
 
     } catch (error) {
-        console.error("❌ ASK ERROR:", error);
+        if (isDev) console.error("ASK ERROR:", error);
         res.status(500).json({ error: 'Failed to generate answer' });
     }
 };
 
-// NEW: This fixes your ReferenceError!
 export const deleteFile = (req: Request, res: Response): void => {
     const sessionId = req.headers['x-session-id'] as string;
-    const { fileName } = req.params;
+    const fileName = req.params.fileName as string; 
     if (sessionId && fileName) {
         vectorStore.removeFileChunks(sessionId, fileName);
     }
