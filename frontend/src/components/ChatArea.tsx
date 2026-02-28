@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage, ApiResponse } from '../types';
 
 interface ChatAreaProps {
@@ -9,17 +9,36 @@ interface ChatAreaProps {
     uploadFile: (file: File) => Promise<void>;
     threshold: number;
     topK: number; 
+    // NEW: Added maxTokens to the interface!
+    maxTokens: number;
     onOpenSidebar: () => void;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMessages, uploadedFiles, uploadFile, threshold, topK, onOpenSidebar }) => {
+const formatMessageText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index} className="font-bold text-gray-900">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+// NEW: Added maxTokens to the component parameter list!
+export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMessages, uploadedFiles, uploadFile, threshold, topK, maxTokens, onOpenSidebar }) => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const bottomAnchorRef = useRef<HTMLDivElement>(null); 
     
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     const hasFiles = uploadedFiles.length > 0;
+
+    useEffect(() => {
+        bottomAnchorRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isLoading]);
 
     const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
     const handleDragLeave = () => setIsDragging(false);
@@ -42,7 +61,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
             const res = await fetch(`${API_URL}/api/ask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId },
-                body: JSON.stringify({ question: input, threshold, topK }) 
+                // NEW: maxTokens is now correctly sending to the backend!
+                body: JSON.stringify({ question: input, threshold, topK, maxTokens }) 
             });
             const data = await res.json() as ApiResponse;
 
@@ -65,12 +85,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
 
     return (
         <div className="flex-1 flex flex-col bg-white relative">
-            
             <div className="md:hidden flex items-center p-4 border-b border-gray-200 bg-white">
                 <button onClick={onOpenSidebar} className="p-2 mr-3 text-gray-600 hover:bg-gray-100 rounded-md">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
-                <h1 className="text-lg font-bold text-blue-600">Document-Chat AI</h1>
+                <h1 className="text-lg font-bold text-blue-600">Docu-Chat AI</h1>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
@@ -103,8 +122,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
                     messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-3xl rounded-2xl p-5 ${msg.role === 'user' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-50 text-gray-800 border border-gray-200 shadow-sm'}`}>
-                                <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                                
+                                <div className="leading-relaxed whitespace-pre-wrap">
+                                    {formatMessageText(msg.content)}
+                                </div>
                                 {msg.sources && msg.sources.length > 0 && (
                                     <div className="mt-4">
                                         <details className="group">
@@ -138,6 +158,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
                         </div>
                     </div>
                 )}
+                <div ref={bottomAnchorRef} /> 
             </div>
 
             <div className="p-4 md:p-6 bg-white border-t border-gray-100">
