@@ -166,7 +166,7 @@ export default function App() {
             <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
                 <div className="flex h-screen items-center justify-center bg-gray-50">
                     <div className="bg-white p-10 rounded-xl shadow-xl text-center border border-gray-100 max-w-md w-full">
-                        <h1 className="text-3xl font-bold mb-2 text-blue-600">Docu-Chat AI</h1>
+                        <h1 className="text-3xl font-bold mb-2 text-blue-600">Document Chat AI</h1>
                         <p className="text-gray-500 mb-8">Secure document intelligence.</p>
                         <div className="flex justify-center">
                             <GoogleLogin onSuccess={handleLoginSuccess} />

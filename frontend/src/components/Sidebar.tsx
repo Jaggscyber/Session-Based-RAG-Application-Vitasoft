@@ -13,7 +13,6 @@ interface SidebarProps {
     threshold: number; setThreshold: (val: number) => void;
     chunkSize: number; setChunkSize: (val: number) => void;
     topK: number; setTopK: (val: number) => void;
-    // NEW: Added the missing props to the interface!
     maxTokens: number; setMaxTokens: (val: number) => void;
     onRemoveFile: (fileName: string) => void;
     onLoadSession: (id: string) => void;
@@ -34,7 +33,7 @@ const timeAgo = (date: number) => {
     return new Date(date).toLocaleDateString();
 };
 
-// NEW: Added the missing props to the component parameters!
+
 export const Sidebar: React.FC<SidebarProps> = ({ 
     userName, activeSessionId, sessions, uploadedFiles, uploadStatus, statusMessage, uploadFile,
     threshold, setThreshold, chunkSize, setChunkSize, topK, setTopK, maxTokens, setMaxTokens,
@@ -58,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <div className="truncate">
                             <h2 className="text-sm font-bold text-gray-800 truncate">{userName || 'User'}</h2>
-                            <p className="text-xs text-gray-500">Docu-Chat AI</p>
+                            <p className="text-xs text-gray-500">Document Chat AI</p>
                         </div>
                     </div>
                     <button onClick={onLogout} title="Logout" className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
@@ -118,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                     <p className="flex justify-between items-center">
                                                         <span className="font-bold text-blue-800/70">Status:</span> 
                                                         <span className="text-green-600 font-bold flex items-center bg-green-100 px-2 py-0.5 rounded-full">
-                                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span> Active
+                                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span> Success
                                                         </span>
                                                     </p>
                                                     <p className="flex justify-between items-center">
@@ -182,25 +181,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="threshold-slider">
                                     <span>Similarity Threshold</span> <span className="font-bold">{threshold}</span>
                                 </label>
-                                <input id="threshold-slider" aria-label="Similarity Threshold" type="range" min="0.3" max="0.99" step="0.01" value={threshold} onChange={(e) => setThreshold(parseFloat(e.target.value))} className="w-full accent-blue-600" />
+                                {/* Changed from accent-blue-600 to accent-red-600 */}
+                                <input id="threshold-slider" aria-label="Similarity Threshold" type="range" min="0.3" max="0.99" step="0.01" value={threshold} onChange={(e) => setThreshold(parseFloat(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="chunk-slider">
                                     <span>Chunk Size (chars)</span> <span className="font-bold">{chunkSize}</span>
                                 </label>
-                                <input id="chunk-slider" aria-label="Chunk Size" type="range" min="500" max="2000" step="100" value={chunkSize} onChange={(e) => setChunkSize(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                                {/* Changed from accent-blue-600 to accent-red-600 */}
+                                <input id="chunk-slider" aria-label="Chunk Size" type="range" min="500" max="2000" step="100" value={chunkSize} onChange={(e) => setChunkSize(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="topk-slider">
                                     <span>Top K Sources</span> <span className="font-bold">{topK}</span>
                                 </label>
-                                <input id="topk-slider" aria-label="Top K Sources" type="range" min="1" max="6" step="1" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                                {/* Changed from accent-blue-600 to accent-red-600 */}
+                                <input id="topk-slider" aria-label="Top K Sources" type="range" min="1" max="6" step="1" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="token-slider">
                                     <span>Max Output Tokens</span> <span className="font-bold">{maxTokens}</span>
                                 </label>
-                                <input id="token-slider" aria-label="Max Tokens" type="range" min="100" max="2000" step="100" value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value))} className="w-full accent-blue-600" />
+                                {/* Changed from accent-blue-600 to accent-red-600 */}
+                                <input id="token-slider" aria-label="Max Tokens" type="range" min="100" max="2000" step="100" value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                         </div>
                     </details>
