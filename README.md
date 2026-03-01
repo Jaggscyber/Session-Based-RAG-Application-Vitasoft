@@ -159,44 +159,44 @@ Package Used :
 
 1. Volatile In-Memory Storage
 
-The Limitation: All vector embeddings and session data are stored directly inside the Node.js RAM (using a JavaScript Map) rather than a hard drive.
-The Impact: Because the storage is volatile, if the Render server goes to sleep, restarts, or scales horizontally to multiple instances, all user session data and uploaded document vectors are instantly and permanently erased.
-The Fix: Migrate the vector storage layer to a persistent, disk-backed vector database like Pinecone, ChromaDB, or pgvector.
+**The Limitation**: All vector embeddings and session data are stored directly inside the Node.js RAM (using a JavaScript Map) rather than a hard drive.
+**The Impact**: Because the storage is volatile, if the Render server goes to sleep, restarts, or scales horizontally to multiple instances, all user session data and uploaded document vectors are instantly and permanently erased.
+**The Fix**: Migrate the vector storage layer to a persistent, disk-backed vector database like Pinecone, ChromaDB, or pgvector.
 
 2. Single-Thread Event Loop Blocking
 
-The Limitation: PDF text extraction and chunk embedding are executed synchronously on the main Node.js thread.
-The Impact: Node.js operates on a single thread. If a user uploads a massive 500-page PDF, the CPU will be monopolized during the parsing and embedding loop. During this time, the event loop is "blocked," meaning if another user tries to send a simple chat message, their request will hang and wait until the massive PDF is finished processing.
-The Fix: Decouple the architecture by introducing a background job queue (e.g., Redis + BullMQ) to handle document processing asynchronously on separate worker threads.
+**The Limitation**: PDF text extraction and chunk embedding are executed synchronously on the main Node.js thread.
+**The Impact**: Node.js operates on a single thread. If a user uploads a massive 500-page PDF, the CPU will be monopolized during the parsing and embedding loop. During this time, the event loop is "blocked," meaning if another user tries to send a simple chat message, their request will hang and wait until the massive PDF is finished processing.
+**The Fix**: Decouple the architecture by introducing a background job queue (e.g., Redis + BullMQ) to handle document processing asynchronously on separate worker threads.
 
 3. Lack of Spatial / Visual Citations
 
-The Limitation: The application's pdf-parse library extracts pure raw text, stripping away all formatting and spatial metadata (X/Y coordinates on the page).
-The Impact: When the AI provides a citation, the frontend can only display the raw text snippet in the "Retrieved Sources" dropdown. The user still has to manually Ctrl+F through their actual PDF to figure out exactly which page and paragraph the text came from.
-The Fix: Upgrade to a layout-aware PDF parser (like PyMuPDF) that maps text to page coordinates, allowing the frontend to overlay a visual yellow highlighter box directly onto the original PDF document.
+**The Limitation**: The application's pdf-parse library extracts pure raw text, stripping away all formatting and spatial metadata (X/Y coordinates on the page).
+**The Impact**: When the AI provides a citation, the frontend can only display the raw text snippet in the "Retrieved Sources" dropdown. The user still has to manually Ctrl+F through their actual PDF to figure out exactly which page and paragraph the text came from.
+**The Fix**: Upgrade to a layout-aware PDF parser (like PyMuPDF) that maps text to page coordinates, allowing the frontend to overlay a visual yellow highlighter box directly onto the original PDF document.
 
 ## Future Improvements
 
 1. Persistent Vector Storage
 
-What to add: A dedicated vector database like ChromaDB, Pinecone, or pgvector.
-Uses: Replaces the temporary, RAM-based Map() store with a permanent database engine.
-Why: Currently, all document embeddings exist purely in the server's RAM. If the Node.js server goes to sleep or restarts, all session data is wiped. Integrating persistent storage ensures user sessions and processed documents survive server reboots, allowing users to return days later without re-uploading their files.
+**What to add**: A dedicated vector database like ChromaDB, Pinecone, or pgvector.
+**Uses**: Replaces the temporary, RAM-based Map() store with a permanent database engine.
+**Why****: Currently, all document embeddings exist purely in the server's RAM. If the Node.js server goes to sleep or restarts, all session data is wiped. Integrating persistent storage ensures user sessions and processed documents survive server reboots, allowing users to return days later without re-uploading their files.
 
 2. Background Task Queue (Asynchronous Processing)
 
-What to add: A message broker and job queue system, such as Redis combined with BullMQ.
-Uses: Offloads the heavy CPU work of PDF parsing and API embedding generation to a separate background worker process.
-Why: Node.js operates on a single thread. If a user uploads a massive 500-page PDF, processing chunks sequentially blocks the main event loop. This prevents other users from sending messages while the PDF is processing. A background queue ensures the main chat interface remains lightning-fast for everyone, while heavy processing happens safely in the background.
+**What to add**: A message broker and job queue system, such as Redis combined with BullMQ.
+**Uses**: Offloads the heavy CPU work of PDF parsing and API embedding generation to a separate background worker process.
+**Why**: Node.js operates on a single thread. If a user uploads a massive 500-page PDF, processing chunks sequentially blocks the main event loop. This prevents other users from sending messages while the PDF is processing. A background queue ensures the main chat interface remains lightning-fast for everyone, while heavy processing happens safely in the background.
 
 3. Multi-Turn Conversation Memory
 
-What to add: An array state payload that passes the last 4-5 chat messages along with the new user query to the Gemini API.
-Uses: Provides the LLM with the context of the ongoing conversation, not just the isolated document chunks.
-Why: Currently, the app functions as a "Single-Turn QA" tool. If the AI lists three methods and the user replies, "Can you explain the second one in more detail?", the AI lacks the memory to know what "the second one" refers to. Injecting chat history transforms the app into a true, context-aware conversational assistant.
+**What to add**: An array state payload that passes the last 4-5 chat messages along with the new user query to the Gemini API.
+**Uses**: Provides the LLM with the context of the ongoing conversation, not just the isolated document chunks.
+**Why**: Currently, the app functions as a "Single-Turn QA" tool. If the AI lists three methods and the user replies, "Can you explain the second one in more detail?", the AI lacks the memory to know what "the second one" refers to. Injecting chat history transforms the app into a true, context-aware conversational assistant.
 
 4. PDF Spatial Highlighting
 
-What to add: A layout-aware PDF parsing library (like PyMuPDF) combined with a frontend PDF viewer (like react-pdf).
-Uses: Extracts not just the text, but the exact X/Y coordinate bounding boxes for every word on the original PDF page.
-Why: Instead of just showing raw text snippets in the "Retrieved Sources" dropdown, the app could display the actual visual PDF side-by-side with the chat. When the AI answers, it could draw a yellow highlight box over the exact paragraph it used to generate the answer, drastically improving user trust and verifiability.
+**What to add**: A layout-aware PDF parsing library (like PyMuPDF) combined with a frontend PDF viewer (like react-pdf).
+**Uses**: Extracts not just the text, but the exact X/Y coordinate bounding boxes for every word on the original PDF page.
+**Why**: Instead of just showing raw text snippets in the "Retrieved Sources" dropdown, the app could display the actual visual PDF side-by-side with the chat. When the AI answers, it could draw a yellow highlight box over the exact paragraph it used to generate the answer, drastically improving user trust and verifiability.
