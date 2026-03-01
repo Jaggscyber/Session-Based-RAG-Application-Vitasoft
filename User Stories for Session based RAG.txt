@@ -1,0 +1,7 @@
+1. As a user, I want to log in securely using my Google account so that I don't have to remember a new password and my chat history is tied exclusively to me.
+2. As a user, I want to upload PDF and TXT documents into the application so that the AI can read and analyze my specific materials.
+3. As a user, I want to click a "View Retrieved Sources" dropdown below the AI's answer so that I can read the exact paragraphs the AI used and verify its accuracy.
+4. As a user, I want to see a list of my "Recent Chats" in the sidebar so that I can easily switch between different document sessions.
+5. As a user, I want to click a "+ Start New Session" button so that I can begin a fresh conversation with a blank slate.
+6. As a user, I want to delete old chats using a trash can icon so that I can remove clutter from my UI and securely wipe the data from the server's memory.
+7. As a user, I want to upload multiple files into the same chat session so that the AI can search across all of them simultaneously and synthesize answers from several different documents at once.
