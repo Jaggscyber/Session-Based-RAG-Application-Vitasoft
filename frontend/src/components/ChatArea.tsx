@@ -9,7 +9,7 @@ interface ChatAreaProps {
     uploadFile: (file: File) => Promise<void>;
     threshold: number;
     topK: number; 
-    // NEW: Added maxTokens to the interface!
+    //Added maxTokens to the interface!
     maxTokens: number;
     onOpenSidebar: () => void;
 }
@@ -24,7 +24,7 @@ const formatMessageText = (text: string) => {
     });
 };
 
-// NEW: Added maxTokens to the component parameter list!
+//Added maxTokens to the component parameter list!
 export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMessages, uploadedFiles, uploadFile, threshold, topK, maxTokens, onOpenSidebar }) => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +61,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ sessionId, messages, setMess
             const res = await fetch(`${API_URL}/api/ask`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-session-id': sessionId },
-                // NEW: maxTokens is now correctly sending to the backend!
+                //maxTokens is now correctly sending to the backend!
                 body: JSON.stringify({ question: input, threshold, topK, maxTokens }) 
             });
             const data = await res.json() as ApiResponse;

@@ -35,7 +35,6 @@ export default function App() {
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
 
-    // Configurable Settings (Added maxTokens for Bonus)
     const [threshold, setThreshold] = useState<number>(0.50); 
     const [chunkSize, setChunkSize] = useState<number>(1000);
     const [topK, setTopK] = useState<number>(3);
@@ -137,14 +136,28 @@ export default function App() {
         }
     };
 
-    // FEATURE: User Control to Delete specific chats
-    const handleDeleteSession = (idToDelete: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevents loading the chat when you just want to delete it
+    // User Control to Delete specific chats AND Clear Server RAM
+    const handleDeleteSession = async (idToDelete: string, e: React.MouseEvent) => {
+        e.stopPropagation(); 
+        
+        // Call the backend to clear the vector memory
+        try {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            await fetch(`${API_URL}/api/session`, {
+                method: 'DELETE',
+                headers: { 'x-session-id': idToDelete }
+            });
+        } catch (error) {
+            console.error("Failed to clear session from server memory.");
+        }
+
+        // Remove from frontend state
         setSessions(prev => {
             const updated = prev.filter(s => s.sessionId !== idToDelete);
             localStorage.setItem('docuChatSessions', JSON.stringify(updated));
             return updated;
         });
+        
         if (activeSessionId === idToDelete) {
             handleNewChat();
         }
@@ -188,7 +201,7 @@ export default function App() {
                 threshold={threshold} setThreshold={setThreshold}
                 chunkSize={chunkSize} setChunkSize={setChunkSize}
                 topK={topK} setTopK={setTopK}
-                maxTokens={maxTokens} setMaxTokens={setMaxTokens} // Passed new prop
+                maxTokens={maxTokens} setMaxTokens={setMaxTokens}
                 onRemoveFile={async (name) => {
                     try {
                         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -199,7 +212,7 @@ export default function App() {
                     } catch (e) { console.error("Failed to delete file"); }
                 }}
                 onLoadSession={handleLoadSession}
-                onDeleteSession={handleDeleteSession} // Passed new prop
+                onDeleteSession={handleDeleteSession}
                 onNewChat={handleNewChat}
                 onLogout={handleLogout}
                 isOpen={isSidebarOpen}
@@ -209,7 +222,7 @@ export default function App() {
                 sessionId={activeSessionId}
                 messages={messages} setMessages={setMessages}
                 uploadedFiles={uploadedFiles} uploadFile={uploadFile}
-                threshold={threshold} topK={topK} maxTokens={maxTokens} // Passed new prop
+                threshold={threshold} topK={topK} maxTokens={maxTokens} 
                 onOpenSidebar={() => setIsSidebarOpen(true)}
             />
         </div>

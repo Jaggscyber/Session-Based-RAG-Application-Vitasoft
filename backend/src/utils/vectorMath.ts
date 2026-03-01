@@ -5,8 +5,6 @@ export function normalizeVector(vector: number[]): number[] {
     return vector.map(val => val / magnitude);
 }
 
-// Since the vectors are pre-normalized, Cosine Similarity simplifies directly to the Dot Product.
-// This is mathematically faster because it skips calculating square roots during retrieval.
 export function optimizedCosineSimilarity(vecA: number[], vecB: number[]): number {
     let dotProduct = 0;
     for (let i = 0; i < vecA.length; i++) {

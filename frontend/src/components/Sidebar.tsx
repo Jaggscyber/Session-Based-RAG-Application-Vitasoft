@@ -181,28 +181,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="threshold-slider">
                                     <span>Similarity Threshold</span> <span className="font-bold">{threshold}</span>
                                 </label>
-                                {/* Changed from accent-blue-600 to accent-red-600 */}
                                 <input id="threshold-slider" aria-label="Similarity Threshold" type="range" min="0.3" max="0.99" step="0.01" value={threshold} onChange={(e) => setThreshold(parseFloat(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="chunk-slider">
                                     <span>Chunk Size (chars)</span> <span className="font-bold">{chunkSize}</span>
                                 </label>
-                                {/* Changed from accent-blue-600 to accent-red-600 */}
                                 <input id="chunk-slider" aria-label="Chunk Size" type="range" min="500" max="2000" step="100" value={chunkSize} onChange={(e) => setChunkSize(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="topk-slider">
                                     <span>Top K Sources</span> <span className="font-bold">{topK}</span>
                                 </label>
-                                {/* Changed from accent-blue-600 to accent-red-600 */}
                                 <input id="topk-slider" aria-label="Top K Sources" type="range" min="1" max="6" step="1" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-600 flex justify-between mb-1" htmlFor="token-slider">
                                     <span>Max Output Tokens</span> <span className="font-bold">{maxTokens}</span>
                                 </label>
-                                {/* Changed from accent-blue-600 to accent-red-600 */}
+
                                 <input id="token-slider" aria-label="Max Tokens" type="range" min="100" max="2000" step="100" value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value))} className="w-full accent-red-600" />
                             </div>
                         </div>

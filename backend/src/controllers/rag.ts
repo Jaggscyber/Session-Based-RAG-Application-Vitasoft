@@ -47,13 +47,12 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         const topK = Math.min(Math.max(parseInt(req.body.topK) || 3, 1), 10);
         const threshold = Math.min(Math.max(parseFloat(req.body.threshold) || 0.50, 0), 1);
         
-        // BONUS: Parse the max tokens from the frontend request
-        const maxTokens = Math.min(Math.max(parseInt(req.body.maxTokens) || 500, 100), 2000);
+        const maxTokens = Math.min(Math.max(parseInt(req.body.maxTokens) || 2000, 100), 8192);
         const question = req.body.question;
 
         const storedChunks = vectorStore.getChunks(sessionId);
         if (storedChunks.length === 0) {
-            res.status(400).json({ error: 'Server memory  reset. Please re-upload your document to restore this session!!' }); 
+            res.status(400).json({ error: 'Server memory reset. Please re-upload your document to restore this session!!' }); 
             return;
         }
 
@@ -75,20 +74,22 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         }
 
         const context = relevantChunks.map(c => c.text).join('\n\n---\n\n');
-        const prompt = `You are an expert analytical assistant. Answer the user's question using ONLY the provided document context below. 
-        Rules:
-        1. Do NOT use any external knowledge. 
-        2. You may synthesize the information found in the context.
-        3. If the context does not contain enough information, reply exactly with: "I cannot answer this based on the provided documents."
+        
+        const prompt = `You are an expert AI tutor helping a student understand their document. 
 
-        Context:
+        Context Information:
         ${context}
 
-        Question: ${question}`;
+        User Question:
+        ${question}
 
-        const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        Instructions:
+        1. Answer the user's question clearly, comprehensively, and in complete sentences.
+        2. If the user asks for steps, bullet points, or lists, format your answer clearly using Markdown.
+        3. Base your answer ONLY on the provided Context Information. If the context does not contain the answer, say exactly: "I cannot answer this based on the provided documents."`;
+
+        const chatModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        // BONUS: Injecting Token Length Control into the LLM execution
         const completion = await chatModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: { maxOutputTokens: maxTokens }
@@ -116,4 +117,13 @@ export const deleteFile = (req: Request, res: Response): void => {
         vectorStore.removeFileChunks(sessionId, fileName);
     }
     res.json({ success: true });
+};
+
+//Endpoint logic to completely clear a session
+export const clearSession = (req: Request, res: Response): void => {
+    const sessionId = req.headers['x-session-id'] as string;
+    if (sessionId) {
+        vectorStore.clearSession(sessionId);
+    }
+    res.json({ success: true, message: 'Session memory cleared successfully' });
 };
