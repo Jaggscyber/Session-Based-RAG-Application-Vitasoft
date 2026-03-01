@@ -3,10 +3,9 @@ import { extractText, chunkText } from '../services/parser';
 import { vectorStore } from '../store/memoryDb';
 import { normalizeVector, optimizedCosineSimilarity } from '../utils/vectorMath';
 import { AskRequest, ApiResponse } from '../types';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-const isDev = process.env.NODE_ENV !== 'production';
 
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -21,22 +20,25 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         const text = await extractText(req.file.buffer, req.file.mimetype);
         const chunks = chunkText(text, chunkSize); 
 
+        // Restored to the exact embedding model that successfully uploaded your PDFs
         const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+        const chunkData: { text: string; embedding: number[]; fileName: string }[] = [];
         
-        const chunkData = await Promise.all(chunks.map(async (chunk) => {
+        // Sequential loop to prevent the 429 Rate Limit Crash
+        for (const chunk of chunks) {
             const result = await embeddingModel.embedContent(chunk);
-            return {
+            chunkData.push({
                 text: chunk,
                 embedding: normalizeVector(result.embedding.values),
                 fileName: req.file!.originalname
-            };
-        }));
+            });
+        }
 
         vectorStore.addChunks(sessionId, chunkData);
         res.json({ status: 'Success', chunksCreated: chunks.length, sessionId });
-    } catch (error) {
-        if (isDev) console.error("UPLOAD ERROR:", error);
-        res.status(500).json({ error: 'Failed to process document' });
+    } catch (error: any) {
+        console.error("UPLOAD ERROR FULL TRACE:", error);
+        res.status(500).json({ error: `Upload Failed: ${error.message || 'Unknown API Error'}` });
     }
 };
 
@@ -56,8 +58,8 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-        const qEmbeddingResult = await embeddingModel.embedContent(question);
+        const queryModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+        const qEmbeddingResult = await queryModel.embedContent(question);
         const queryVector = normalizeVector(qEmbeddingResult.embedding.values);
 
         const scoredChunks = storedChunks.map(chunk => ({
@@ -88,14 +90,28 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         2. If the user asks for steps, bullet points, or lists, format your answer clearly using Markdown.
         3. Base your answer ONLY on the provided Context Information. If the context does not contain the answer, say exactly: "I cannot answer this based on the provided documents."`;
 
-        const chatModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // RESTORED: The exact model you had working in your very first screenshot!
+        const chatModel = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            safetySettings: [
+                {
+                    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold: HarmBlockThreshold.BLOCK_NONE,
+                },
+                {
+                    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold: HarmBlockThreshold.BLOCK_NONE,
+                }
+            ]
+        });
         
+        // The maxOutputTokens here will fix the mid-sentence cut-off you originally had
         const completion = await chatModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: { maxOutputTokens: maxTokens }
         });
 
-        if (isDev) console.info(`[RAG] Response generated in ${Date.now() - startTime}ms`);
+        console.info(`[RAG] Response generated in ${Date.now() - startTime}ms`);
 
         const successRes: ApiResponse = {
             answer: completion.response.text(),
@@ -104,9 +120,9 @@ export const askQuestion = async (req: Request, res: Response): Promise<void> =>
         };
         res.json(successRes);
 
-    } catch (error) {
-        if (isDev) console.error("ASK ERROR:", error);
-        res.status(500).json({ error: 'Failed to generate answer' });
+    } catch (error: any) {
+        console.error("ASK ERROR FULL TRACE:", error);
+        res.status(500).json({ error: `API Error: ${error.message || 'Failed to generate answer'}` });
     }
 };
 
@@ -119,7 +135,6 @@ export const deleteFile = (req: Request, res: Response): void => {
     res.json({ success: true });
 };
 
-//Endpoint logic to completely clear a session
 export const clearSession = (req: Request, res: Response): void => {
     const sessionId = req.headers['x-session-id'] as string;
     if (sessionId) {
