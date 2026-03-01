@@ -3,7 +3,7 @@
 ![alt text](image.png)
 ![alt text](<Session RAG Sequence Diagram.drawio-1.png>)
 
-Document Chat AI is a full-stack application that lets you upload any PDF or TXT file and have a real conversation with it. Ask questions, get summaries, dig into details — all powered by Google Gemini and a custom-built vector retrieval engine running entirely in memory. It contains No Database and does not store on disk.
+Document Chat AI is a full-stack application that lets you upload any PDF or TXT file and have a real conversation with it. Ask questions, get summaries — all powered by Google Gemini and a custom-built vector retrieval engine running entirely in memory. It contains No Database and does not store on disk.
 
 ---
 
